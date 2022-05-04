@@ -2,9 +2,13 @@ const { expect } = require("chai");
 const { ethers } = require("hardhat");
 
 describe("BasicNFT", function () {
+  console.log = function() {}; // turn off console.log
+
+
   let basicNFT;
   const MINT_PRICE = "0.01";
   const WRONG_MINT_PRICE = "0.005";
+  const TOTAL_SUPPLY = 5;
 
   before(async function () {
     [owner, user1, user2, user3, user4] = await ethers.getSigners();
@@ -17,7 +21,7 @@ describe("BasicNFT", function () {
   });
 
 
-  describe("BasicNFT testing", function () {
+  describe("BasicNFT - owner only functions", function () {
     console.log("----------------------");
     
     it("should set toggleMintEnable correctly ", async function () {
@@ -27,13 +31,19 @@ describe("BasicNFT", function () {
       mintEnable = await basicNFT.isMintEnabled();
       console.log("after toggleMintEnabled, mintEnable is " + mintEnable);
 
-        expect (mintEnable).to.be.true;
+      expect (mintEnable).to.be.true;
       // expect(payoffAmount).to.equal(LOAN_AMOUNT);
 
     });
 
+    it("should set max supply correctly ", async function () {
+      await basicNFT.setMaxSupply(TOTAL_SUPPLY);
+      maxSupply = await basicNFT.getMaxSupply();
+      expect (maxSupply).to.equal(TOTAL_SUPPLY);
+    });
 
-    describe("BasicNFT - mint testing", function () {
+
+    describe("BasicNFT - user functions", function () {
       beforeEach(async function () {
         console.log("----------------------");
         console.log("owner balance is  " + await basicNFT.balanceOf(owner.address));
@@ -59,7 +69,7 @@ describe("BasicNFT", function () {
 
       });
 
-      it("user1 should not be able to mint again", async function() {
+      it("user1 should not be able to mint again - max NFTS minted", async function() {
         result = basicNFT.connect(user1).mint( 
           {value : ethers.utils.parseEther(MINT_PRICE)
           });
@@ -87,6 +97,30 @@ describe("BasicNFT", function () {
                       {value : ethers.utils.parseEther(WRONG_MINT_PRICE)
                       })
                     ).to.be.revertedWith("wrong minting price");
+      })
+
+      it("user4 should not be able to mint if minting is not enabled", async function() {
+        //owner disable minting
+        await basicNFT.toggleMintEnabled();
+        await expect(basicNFT.connect(user4).mint( 
+                      {value : ethers.utils.parseEther(MINT_PRICE)
+                      })
+                    ).to.be.revertedWith("minting not enabled yet");
+      })
+
+      it("user3 should not be able to mint if total minted > total supply", async function() {
+        // re enable minting
+        mintEnabled = await basicNFT.isMintEnabled();
+        if (!mintEnabled) {
+           await basicNFT.toggleMintEnabled();
+        }
+        totalMinted = await basicNFT.getTotalMinted();
+        // reset max supply 
+        await basicNFT.setMaxSupply(totalMinted);
+        await expect(basicNFT.connect(user3).mint( 
+                      {value : ethers.utils.parseEther(MINT_PRICE)
+                      })
+                    ).to.be.revertedWith("sold out");
       })
 
     });
